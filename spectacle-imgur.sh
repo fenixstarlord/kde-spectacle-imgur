@@ -17,6 +17,12 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
+prompt_for_client_id() {
+    printf '%s' "Imgur client ID: " >&2
+    IFS= read -r IMGUR_CLIENT_ID || die "failed to read Imgur client ID"
+    [ -n "$IMGUR_CLIENT_ID" ] || die "Imgur client ID is required"
+}
+
 json_get_link() {
     python3 -c 'import json, sys
 data = json.load(sys.stdin)
@@ -48,7 +54,7 @@ require_cmd curl
 require_cmd python3
 require_cmd "$COPY_BIN"
 
-[ -n "$IMGUR_CLIENT_ID" ] || die "set IMGUR_CLIENT_ID to an Imgur client id"
+[ -n "$IMGUR_CLIENT_ID" ] || prompt_for_client_id
 
 printf '%s\n' "Select a region in Spectacle..." >&2
 if ! "$SPECTACLE_BIN" -b -n -r -o "$shot_file"; then

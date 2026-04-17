@@ -7,6 +7,36 @@ Single-file Wayland workflow for Dan on Bazzite KDE:
 1. Upload the file to Imgur.
 1. Copy the Imgur URL to the clipboard.
 
+## Quick Start
+
+1. Install `wl-copy`:
+
+```bash
+brew install wl-clipboard
+```
+
+2. Create an Imgur app and copy the `Client ID`:
+
+https://api.imgur.com/oauth2/addclient
+
+3. Copy and paste this code into your terminal to download the script:
+
+```bash
+curl -fsSL -o spectacle-imgur.sh \
+  https://raw.githubusercontent.com/fenixstarlord/kde-spectacle-imgur/main/spectacle-imgur.sh
+chmod +x spectacle-imgur.sh
+```
+
+4. Run the script:
+
+```bash
+./spectacle-imgur.sh
+```
+
+5. Paste your Imgur `Client ID` when the script asks for it.
+6. Select the screen region you want to upload.
+7. Paste the Imgur link wherever you want. The script already copied it to your clipboard.
+
 ## Requirements
 
 - `wl-copy`
@@ -23,20 +53,6 @@ brew install wl-clipboard
 
 If your shell does not see `wl-copy` right away, make sure Homebrew's `bin` is on `PATH`.
 
-## Setup
-
-Set your Imgur client id:
-
-```bash
-export IMGUR_CLIENT_ID='your-client-id'
-```
-
-Optional overrides:
-
-- `SPECTACLE_BIN` defaults to `spectacle`
-- `IMGUR_API_URL` defaults to `https://api.imgur.com/3/image`
-- `COPY_BIN` defaults to `wl-copy`
-
 ## Get Imgur Client ID
 
 Create an Imgur app here:
@@ -47,20 +63,39 @@ Use the app's `Client ID` value, not the secret.
 
 ## Download
 
+Copy and paste this code into your terminal:
+
 ```bash
 curl -fsSL -o spectacle-imgur.sh \
   https://raw.githubusercontent.com/fenixstarlord/kde-spectacle-imgur/main/spectacle-imgur.sh
 chmod +x spectacle-imgur.sh
 ```
 
-## Usage
+What these commands do:
+
+- `curl -fsSL -o spectacle-imgur.sh ...` downloads the script into a file named `spectacle-imgur.sh`
+- `chmod +x spectacle-imgur.sh` makes the script runnable
+
+## How To Use It
 
 ```bash
-chmod +x spectacle-imgur.sh
 ./spectacle-imgur.sh
 ```
 
-The script prints the uploaded Imgur URL and copies it to the clipboard.
+What happens next:
+
+- The script asks for your Imgur `Client ID` if you did not already set `IMGUR_CLIENT_ID`
+- Spectacle opens in region-select mode
+- You drag to select the area you want
+- The script uploads the screenshot to Imgur
+- The Imgur URL is copied to your clipboard
+- The script also prints the URL in the terminal
+
+## Optional Settings
+
+- `SPECTACLE_BIN` defaults to `spectacle`
+- `IMGUR_API_URL` defaults to `https://api.imgur.com/3/image`
+- `COPY_BIN` defaults to `wl-copy`
 
 ## Notes
 
