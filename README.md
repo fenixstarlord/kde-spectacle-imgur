@@ -37,6 +37,22 @@ Optional overrides:
 - `IMGUR_API_URL` defaults to `https://api.imgur.com/3/image`
 - `COPY_BIN` defaults to `wl-copy`
 
+## Get Imgur Client ID
+
+Create an Imgur app here:
+
+https://api.imgur.com/oauth2/addclient
+
+Use the app's `Client ID` value, not the secret.
+
+## Download
+
+```bash
+curl -fsSL -o spectacle-imgur.sh \
+  https://raw.githubusercontent.com/fenixstarlord/kde-spectacle-imgur/main/spectacle-imgur.sh
+chmod +x spectacle-imgur.sh
+```
+
 ## Usage
 
 ```bash
