@@ -7,41 +7,10 @@ Single-file Wayland workflow for Dan on Bazzite KDE:
 1. Upload the file to Imgur.
 1. Copy the Imgur URL to the clipboard.
 
-## Quick Start
-
-1. Install `wl-copy`:
-
-```bash
-brew install wl-clipboard
-```
-
-2. Create an Imgur app and copy the `Client ID`:
-
-https://api.imgur.com/oauth2/addclient
-
-3. Copy and paste this code into your terminal to download the script:
-
-```bash
-curl -fsSL -o spectacle-imgur.sh \
-  https://raw.githubusercontent.com/fenixstarlord/kde-spectacle-imgur/main/spectacle-imgur.sh
-chmod +x spectacle-imgur.sh
-```
-
-4. Run the script:
-
-```bash
-./spectacle-imgur.sh
-```
-
-5. Paste your Imgur `Client ID` when the script asks for it.
-6. Select the screen region you want to upload.
-7. Paste the Imgur link wherever you want. The script already copied it to your clipboard.
-
 ## Requirements
 
-- `wl-copy`
-
-Bazzite KDE already provides `spectacle`, `curl`, and `python3`.
+- Bazzite KDE already provides `spectacle`, `curl`, and `python3`
+- You only need to install `wl-copy`
 
 ## Install wl-copy
 
@@ -84,7 +53,7 @@ What these commands do:
 
 What happens next:
 
-- The script asks for your Imgur `Client ID` if you did not already set `IMGUR_CLIENT_ID`
+- The script asks for your Imgur `Client ID`
 - Spectacle opens in region-select mode
 - You drag to select the area you want
 - The script uploads the screenshot to Imgur
