@@ -115,6 +115,7 @@ UPLOAD_PROVIDER=catbox ./spectacle-imgur.sh
 - `ZEROX0_API_URL` defaults to `https://0x0.st`
 - `CATBOX_API_URL` defaults to `https://catbox.moe/user/api.php`
 - `CATBOX_USERHASH` is optional for Catbox user-account uploads (anonymous upload omits this)
+- `SAVE_SCREENSHOT_TO_DESKTOP` defaults to `0` (set to `1` to keep a copy for debugging). In `DEBUG=1`, this defaults to `1`.
 - `COPY_BIN` defaults to `wl-copy`
 - `DEBUG` defaults to `0` (set `DEBUG=1` for debug logging)
 

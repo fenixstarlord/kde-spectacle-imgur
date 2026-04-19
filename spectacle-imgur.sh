@@ -16,6 +16,7 @@ COPY_BIN=${COPY_BIN:-wl-copy}
 
 # Set DEBUG=1 for verbose tracing (runtime env + clipboard stderr capture).
 DEBUG=${DEBUG:-0}
+SAVE_SCREENSHOT_TO_DESKTOP=${SAVE_SCREENSHOT_TO_DESKTOP:-$DEBUG}
 
 die() {
     printf '%s: %s\n' "$SCRIPT_NAME" "$*" >&2
@@ -278,12 +279,15 @@ upload_to_catbox() {
         -F "fileToUpload=@$shot_file" \
         "$CATBOX_API_URL") || die "Catbox upload request failed"
 
+    [ "$DEBUG" = "1" ] && log_debug "catbox shot file size: $(wc -c <"$shot_file") bytes"
+
     if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
         upload_response=$(tr -d '\r' <"$response_file")
         die "Catbox upload failed (HTTP $http_code).${upload_response:+ Response: $upload_response}"
     fi
 
     upload_response=$(tr -d '\r' <"$response_file")
+    [ "$DEBUG" = "1" ] && log_debug "catbox response: ${upload_response:-<empty>}"
     upload_url=$(printf '%s\n' "$upload_response" | grep -Eo 'https?://[^[:space:]]+' | head -n 1 || true)
 
     if [ -z "$upload_url" ]; then
@@ -363,6 +367,7 @@ log_env_debug() {
         printf 'IMGUR_AUTH_MODE=%s\n' "$IMGUR_AUTH_MODE"
         printf 'CATBOX_API_URL=%s\n' "$CATBOX_API_URL"
         printf 'COPY_BIN=%s\n' "$COPY_BIN"
+        printf 'SAVE_SCREENSHOT_TO_DESKTOP=%s\n' "$SAVE_SCREENSHOT_TO_DESKTOP"
         printf 'XDG_SESSION_TYPE=%s\n' "${XDG_SESSION_TYPE-}"
         printf 'WAYLAND_DISPLAY=%s\n' "${WAYLAND_DISPLAY-}"
         printf 'XDG_RUNTIME_DIR=%s\n' "${XDG_RUNTIME_DIR-}"
@@ -371,6 +376,31 @@ log_env_debug() {
         printf 'SHOT_FILE=%s\n' "$shot_file"
         printf '%s\n' '--------------------'
     } >&2
+}
+
+save_screenshot_to_desktop() {
+    [ "$SAVE_SCREENSHOT_TO_DESKTOP" = "1" ] || return 0
+
+    desktop_dir="${XDG_DESKTOP_DIR:-${HOME:-/tmp}/Desktop}"
+    if [ ! -d "$desktop_dir" ] && ! mkdir -p "$desktop_dir"; then
+        log_debug "desktop directory does not exist and could not be created: $desktop_dir"
+        return 0
+    fi
+
+    if [ ! -d "$desktop_dir" ]; then
+        log_debug "desktop directory is not available: $desktop_dir"
+        return 0
+    fi
+
+    shot_basename="spectacle-region-$(date +%Y%m%d-%H%M%S).png"
+    shot_copy="$desktop_dir/$shot_basename"
+
+    if cp "$shot_file" "$shot_copy"; then
+        log_debug "saved screenshot copy for debugging: $shot_copy"
+        printf '%s\n' "Debug: saved screenshot copy to: $shot_copy"
+    else
+        log_debug "failed to save screenshot copy to desktop: $shot_copy"
+    fi
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -424,6 +454,8 @@ if ! "$SPECTACLE_BIN" -b -n -r -o "$shot_file"; then
 fi
 
 [ -s "$shot_file" ] || die "Spectacle did not create an image file"
+
+save_screenshot_to_desktop
 
 upload_url=$(upload_screenshot)
 log_debug "upload_url: $upload_url"
