@@ -72,3 +72,9 @@ What happens next:
 - This script assumes Dan is running Bazzite KDE.
 - The script expects KDE Plasma's Spectacle capture flow, not a generic screenshot backend.
 - If you later want a native Spectacle integration, this script can serve as the capture/upload reference implementation.
+
+## Troubleshooting
+
+- `Imgur rejected the Client ID (HTTP 403)`: you likely entered the wrong value. Use the app's `Client ID`, not your Imgur username or the client secret.
+- `Imgur rate limit hit (HTTP 429)`: anonymous uploads are rate-limited by Imgur. Wait a bit and retry, or use a different Client ID.
+- `xdg_wm_base was destroyed before children` from Spectacle: this warning can appear on some KDE setups and usually does not block the upload flow.

@@ -32,6 +32,57 @@ print(data["data"]["link"])
 '
 }
 
+json_get_error() {
+    python3 -c 'import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+
+if not isinstance(data, dict):
+    raise SystemExit(1)
+
+payload = data.get("data")
+if isinstance(payload, dict):
+    err = payload.get("error")
+    if isinstance(err, dict):
+        err = err.get("message")
+    if err:
+        print(err)
+        raise SystemExit(0)
+
+raise SystemExit(1)
+'
+}
+
+upload_to_imgur() {
+    response_file=$tmp_dir/imgur-response.json
+    http_code=$(curl -sS -o "$response_file" -w '%{http_code}' \
+        -H "Authorization: Client-ID $IMGUR_CLIENT_ID" \
+        -F "image=@$shot_file" \
+        "$IMGUR_API_URL") || die "Imgur upload request failed"
+
+    upload_response=$(cat "$response_file")
+
+    if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+        api_error=$(printf '%s' "$upload_response" | json_get_error || true)
+
+        case "$http_code" in
+            403)
+                die "Imgur rejected the Client ID (HTTP 403). Use the app's Client ID value.${api_error:+ API says: $api_error}"
+                ;;
+            429)
+                die "Imgur rate limit hit (HTTP 429). Wait and retry, or use a different Client ID.${api_error:+ API says: $api_error}"
+                ;;
+            *)
+                die "Imgur upload failed (HTTP $http_code).${api_error:+ API says: $api_error}"
+                ;;
+        esac
+    fi
+
+    printf '%s' "$upload_response"
+}
+
 copy_to_clipboard() {
     if command -v "$COPY_BIN" >/dev/null 2>&1; then
         printf '%s' "$1" | "$COPY_BIN"
@@ -63,10 +114,7 @@ fi
 
 [ -s "$shot_file" ] || die "Spectacle did not create an image file"
 
-upload_response=$(curl -fsS \
-    -H "Authorization: Client-ID $IMGUR_CLIENT_ID" \
-    -F "image=@$shot_file" \
-    "$IMGUR_API_URL") || die "Imgur upload failed"
+upload_response=$(upload_to_imgur)
 
 imgur_url=$(printf '%s' "$upload_response" | json_get_link) || die "failed to parse Imgur response"
 
