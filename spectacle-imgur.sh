@@ -320,7 +320,7 @@ log_debug() {
 log_env_debug() {
     [ "$DEBUG" = "1" ] || return 0
     {
-        printf '--- runtime debug ---\n'
+        printf '%s\n' '--- runtime debug ---'
         printf 'SCRIPT_NAME=%s\n' "$SCRIPT_NAME"
         printf 'SPECTACLE_BIN=%s\n' "$SPECTACLE_BIN"
         printf 'UPLOAD_PROVIDER=%s\n' "$UPLOAD_PROVIDER"
@@ -332,7 +332,7 @@ log_env_debug() {
         printf 'DISPLAY=%s\n' "${DISPLAY-}"
         printf 'TMP_DIR=%s\n' "$tmp_dir"
         printf 'SHOT_FILE=%s\n' "$shot_file"
-        printf '--------------------\n'
+        printf '%s\n' '--------------------'
     } >&2
 }
 trap cleanup EXIT HUP INT TERM
