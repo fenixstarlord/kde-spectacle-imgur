@@ -12,6 +12,9 @@ IMGUR_API_URL=${IMGUR_API_URL:-https://api.imgur.com/3/image}
 ZEROX0_API_URL=${ZEROX0_API_URL:-https://0x0.st}
 COPY_BIN=${COPY_BIN:-wl-copy}
 
+# Set DEBUG=1 for verbose tracing (runtime env + clipboard stderr capture).
+DEBUG=${DEBUG:-0}
+
 die() {
     printf '%s: %s\n' "$SCRIPT_NAME" "$*" >&2
     exit 1
@@ -102,7 +105,10 @@ prompt_for_upload_provider() {
     printf '%s\n' "  2) 0x0 (anonymous, no API key)" >&2
     printf '%s' "Choose provider [1]: " >&2
 
-    IFS= read -r choice || die "failed to read upload provider"
+    if ! IFS= read -r choice; then
+        choice=""
+        log_debug "stdin read failed for upload provider prompt; defaulting to 1 (imgur)"
+    fi
     choice=$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]')
 
     case "$choice" in
@@ -124,7 +130,10 @@ prompt_for_imgur_auth_mode() {
     printf '%s\n' "  2) Login (Access token)" >&2
     printf '%s' "Choose Imgur mode [1]: " >&2
 
-    IFS= read -r choice || die "failed to read Imgur mode"
+    if ! IFS= read -r choice; then
+        choice=""
+        log_debug "stdin read failed for imgur auth mode prompt; defaulting to 1 (anonymous)"
+    fi
     choice=$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]')
 
     case "$choice" in
@@ -271,8 +280,23 @@ upload_screenshot() {
 
 copy_to_clipboard() {
     if command -v "$COPY_BIN" >/dev/null 2>&1; then
-        printf '%s' "$1" | "$COPY_BIN"
-        return $?
+        copy_stderr_file="$tmp_dir/clipboard-stderr"
+        : >"$copy_stderr_file"
+
+        if printf '%s' "$1" | "$COPY_BIN" 2>"$copy_stderr_file"; then
+            copy_status=0
+        else
+            copy_status=$?
+        fi
+
+        if [ "$DEBUG" = "1" ] && [ -s "$copy_stderr_file" ]; then
+            log_debug "clipboard command stderr from $COPY_BIN:"
+            while IFS= read -r copy_line; do
+                log_debug "$copy_line"
+            done <"$copy_stderr_file"
+        fi
+
+        return "$copy_status"
     fi
 
     printf '%s\n' "missing clipboard command: $COPY_BIN" >&2
@@ -287,9 +311,36 @@ tmp_dir=$(mktemp -d 2>/dev/null || mktemp -d -t spectacle-imgur)
 cleanup() {
     rm -rf "$tmp_dir"
 }
+
+log_debug() {
+    [ "$DEBUG" = "1" ] || return 0
+    printf 'DEBUG: %s\n' "$*" >&2
+}
+
+log_env_debug() {
+    [ "$DEBUG" = "1" ] || return 0
+    {
+        printf '--- runtime debug ---\n'
+        printf 'SCRIPT_NAME=%s\n' "$SCRIPT_NAME"
+        printf 'SPECTACLE_BIN=%s\n' "$SPECTACLE_BIN"
+        printf 'UPLOAD_PROVIDER=%s\n' "$UPLOAD_PROVIDER"
+        printf 'IMGUR_AUTH_MODE=%s\n' "$IMGUR_AUTH_MODE"
+        printf 'COPY_BIN=%s\n' "$COPY_BIN"
+        printf 'XDG_SESSION_TYPE=%s\n' "${XDG_SESSION_TYPE-}"
+        printf 'WAYLAND_DISPLAY=%s\n' "${WAYLAND_DISPLAY-}"
+        printf 'XDG_RUNTIME_DIR=%s\n' "${XDG_RUNTIME_DIR-}"
+        printf 'DISPLAY=%s\n' "${DISPLAY-}"
+        printf 'TMP_DIR=%s\n' "$tmp_dir"
+        printf 'SHOT_FILE=%s\n' "$shot_file"
+        printf '--------------------\n'
+    } >&2
+}
 trap cleanup EXIT HUP INT TERM
 
 shot_file=$tmp_dir/spectacle-region.png
+
+log_debug "temporary directory: $tmp_dir"
+log_debug "screenshot path: $shot_file"
 
 require_cmd "$SPECTACLE_BIN"
 require_cmd curl
@@ -322,6 +373,11 @@ case "$UPLOAD_PROVIDER" in
         ;;
 esac
 
+log_env_debug
+
+log_debug "resolved upload provider: $UPLOAD_PROVIDER"
+log_debug "resolved imgur auth mode: $IMGUR_AUTH_MODE"
+
 printf '%s\n' "Select a region in Spectacle..." >&2
 if ! "$SPECTACLE_BIN" -b -n -r -o "$shot_file"; then
     die "Spectacle capture failed or was cancelled"
@@ -330,6 +386,7 @@ fi
 [ -s "$shot_file" ] || die "Spectacle did not create an image file"
 
 upload_url=$(upload_screenshot)
+log_debug "upload_url: $upload_url"
 
 case "$upload_url" in
     http://*|https://*)

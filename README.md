@@ -108,6 +108,7 @@ UPLOAD_PROVIDER=0x0 ./spectacle-imgur.sh
 - `IMGUR_ACCESS_TOKEN` is optional and used for Imgur login mode
 - `ZEROX0_API_URL` defaults to `https://0x0.st`
 - `COPY_BIN` defaults to `wl-copy`
+- `DEBUG` defaults to `0` (set `DEBUG=1` for debug logging)
 
 ## Non-Interactive Usage (Skip Menus)
 
@@ -132,6 +133,14 @@ UPLOAD_PROVIDER=0x0 ./spectacle-imgur.sh
 - If you later want a native Spectacle integration, this script can serve as the capture/upload reference implementation.
 
 ## Troubleshooting
+
+- Enable verbose diagnostics by setting `DEBUG=1` when running the script:
+
+  ```bash
+  DEBUG=1 ./spectacle-imgur.sh
+  ```
+
+  This prints runtime context and logs `wl-copy` stderr output when clipboard copy fails.
 
 - `Imgur rejected the Client ID (HTTP 403)`: you likely entered the wrong value. Use the app's `Client ID`, not your Imgur username or the client secret.
 - `Imgur login token is invalid or expired (HTTP 401)`: refresh `IMGUR_ACCESS_TOKEN`.
