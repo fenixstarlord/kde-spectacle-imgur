@@ -47,6 +47,7 @@ set -eu
 output_file=""
 target_url=""
 expect_file=""
+catbox_attempt_file=${CATBOX_RETRY_STATE_FILE-/tmp/catbox-attempts}
 
 for arg in "$@"; do
     if [ "$expect_file" = "1" ]; then
@@ -78,7 +79,22 @@ if printf '%s' "$target_url" | grep -q 'api\.imgur\.com'; then
 elif printf '%s' "$target_url" | grep -q '0x0\.st'; then
     printf '%s' 'https://0x0.example.com/fake.png' > "$output_file"
 elif printf '%s' "$target_url" | grep -q 'catbox\.moe'; then
-    printf '%s' 'https://files.catbox.moe/fake.png' > "$output_file"
+    if [ "${CATBOX_EMPTY_THEN_SUCCESS-}" = "1" ]; then
+        attempt=1
+        if [ -f "$catbox_attempt_file" ]; then
+            attempt=$(cat "$catbox_attempt_file")
+        fi
+        case "$attempt" in ''|*[!0-9]*) attempt=1;; esac
+        if [ "$attempt" -eq 1 ]; then
+            : > "$output_file"
+        else
+            printf '%s' 'https://files.catbox.moe/fake.png' > "$output_file"
+        fi
+        attempt=$((attempt + 1))
+        printf '%s' "$attempt" > "$catbox_attempt_file"
+    else
+        printf '%s' 'https://files.catbox.moe/fake.png' > "$output_file"
+    fi
 else
     printf '%s' '{"success":false}' > "$output_file"
 fi
@@ -90,7 +106,7 @@ chmod +x "$BIN_DIR/curl"
 PROJECT_DIR=$(cd "$(dirname "$0")" && pwd)
 PATH="$BIN_DIR:$PATH"
 
-echo "1/5: imgur success path"
+echo "1/6: imgur success path"
 IMGUR_STDOUT="$WORKDIR/imgur.out"
 IMGUR_STDERR="$WORKDIR/imgur.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -107,7 +123,7 @@ if ! grep -q 'https://imgur\.example\.com/fake\.png' "$IMGUR_STDOUT"; then
     exit 1
 fi
 
-echo "2/5: 0x0 success path"
+echo "2/6: 0x0 success path"
 ZERO_STDOUT="$WORKDIR/0x0.out"
 ZERO_STDERR="$WORKDIR/0x0.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -122,7 +138,7 @@ if ! grep -q 'https://0x0\.example\.com/fake\.png' "$ZERO_STDOUT"; then
     exit 1
 fi
 
-echo "3/5: catbox success path"
+echo "3/6: catbox success path"
 CATBOX_STDOUT="$WORKDIR/catbox.out"
 CATBOX_STDERR="$WORKDIR/catbox.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -137,7 +153,31 @@ if ! grep -q 'https://files\.catbox\.moe/fake\.png' "$CATBOX_STDOUT"; then
     exit 1
 fi
 
-echo "4/5: clipboard failure path"
+echo "4/6: catbox retry on empty response"
+CATBOX_RETRY_STDOUT="$WORKDIR/catbox-retry.out"
+CATBOX_RETRY_STDERR="$WORKDIR/catbox-retry.err"
+CATBOX_RETRY_STATE="$WORKDIR/catbox-retry-state"
+SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
+UPLOAD_PROVIDER=catbox \
+COPY_BIN=true \
+CATBOX_EMPTY_THEN_SUCCESS=1 \
+CATBOX_RETRY_STATE_FILE="$CATBOX_RETRY_STATE" \
+PATH="$BIN_DIR:$PATH" \
+"$PROJECT_DIR/spectacle-imgur.sh" >"$CATBOX_RETRY_STDOUT" 2>"$CATBOX_RETRY_STDERR"
+
+if ! grep -q 'https://files\.catbox\.moe/fake\.png' "$CATBOX_RETRY_STDOUT"; then
+    echo "catbox retry smoke test failed" >&2
+    cat "$CATBOX_RETRY_STDOUT" "$CATBOX_RETRY_STDERR" >&2
+    exit 1
+fi
+
+if [ "$(cat "$CATBOX_RETRY_STATE")" != "3" ]; then
+    echo "catbox retry attempt count was not two attempts" >&2
+    cat "$CATBOX_RETRY_STDOUT" "$CATBOX_RETRY_STDERR" >&2
+    exit 1
+fi
+
+echo "5/6: clipboard failure path"
 CLIP_STDOUT="$WORKDIR/clipboard.out"
 CLIP_STDERR="$WORKDIR/clipboard.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -152,7 +192,7 @@ if ! grep -q 'Warning: failed to copy URL to clipboard with false' "$CLIP_STDERR
     exit 1
 fi
 
-echo "5/5: plugin install/uninstall lifecycle"
+echo "6/6: plugin install/uninstall lifecycle"
 PLUGIN_ROOT="$PROJECT_DIR/spectacle-plugin"
 XDG_TMP="$WORKDIR/plugin-home"
 TARGET_DIR="$XDG_TMP/kpackage/Purpose/spectacle-upload-plugin"

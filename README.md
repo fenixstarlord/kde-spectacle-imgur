@@ -115,6 +115,8 @@ UPLOAD_PROVIDER=catbox ./spectacle-imgur.sh
 - `ZEROX0_API_URL` defaults to `https://0x0.st`
 - `CATBOX_API_URL` defaults to `https://catbox.moe/user/api.php`
 - `CATBOX_USERHASH` is optional for Catbox user-account uploads (anonymous upload omits this)
+- `CATBOX_MAX_RETRIES` defaults to `1` (one retry after the first failed attempt)
+- `CATBOX_HTTP1_FALLBACK` defaults to `1` (retry with `--http1.1` when the first attempt fails)
 - `SAVE_SCREENSHOT_TO_DESKTOP` defaults to `0` (set to `1` to keep a copy for debugging). In `DEBUG=1`, this defaults to `1`.
 - `COPY_BIN` defaults to `wl-copy`
 - `DEBUG` defaults to `0` (set `DEBUG=1` for debug logging)
@@ -158,6 +160,7 @@ UPLOAD_PROVIDER=catbox ./spectacle-imgur.sh
 - `Imgur login token is invalid or expired (HTTP 401)`: refresh `IMGUR_ACCESS_TOKEN`.
 - `Imgur rate limit hit (HTTP 429)`: anonymous uploads are rate-limited by Imgur. Wait a bit and retry, or use a different Client ID.
 - `unsupported UPLOAD_PROVIDER`: use `imgur`, `0x0`, or `catbox`.
+- `Catbox upload succeeded but returned an empty URL`: when `DEBUG=1`, the script now logs response code, headers, and body size for each attempt. Retrying once (plus optional `--http1.1` retry) is enabled by default.
 - `xdg_wm_base was destroyed before children` from Spectacle: this warning can appear on some KDE setups and usually does not block the upload flow.
 
 ## Standalone Spectacle Plugin
@@ -204,6 +207,7 @@ The script uses lightweight command fakes and verifies:
 - `imgur` upload success path
 - `0x0` upload success path
 - `catbox` upload success path
+- `catbox` retry behavior when first response is empty
 - clipboard copy warning path when copy command returns non-zero
 - plugin installer and uninstaller lifecycle in an isolated `XDG_DATA_HOME`
 

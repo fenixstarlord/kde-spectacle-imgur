@@ -12,6 +12,8 @@ IMGUR_API_URL=${IMGUR_API_URL:-https://api.imgur.com/3/image}
 ZEROX0_API_URL=${ZEROX0_API_URL:-https://0x0.st}
 CATBOX_API_URL=${CATBOX_API_URL:-https://catbox.moe/user/api.php}
 CATBOX_USERHASH=${CATBOX_USERHASH:-}
+CATBOX_MAX_RETRIES=${CATBOX_MAX_RETRIES:-1}
+CATBOX_HTTP1_FALLBACK=${CATBOX_HTTP1_FALLBACK:-1}
 COPY_BIN=${COPY_BIN:-wl-copy}
 
 # Set DEBUG=1 for verbose tracing (runtime env + clipboard stderr capture).
@@ -273,32 +275,84 @@ upload_to_0x0() {
 
 upload_to_catbox() {
     response_file=$tmp_dir/catbox-response.txt
-    http_code=$(curl -sS -o "$response_file" -w '%{http_code}' \
-        -F "reqtype=fileupload" \
-        ${CATBOX_USERHASH:+-F "userhash=$CATBOX_USERHASH"} \
-        -F "fileToUpload=@$shot_file" \
-        "$CATBOX_API_URL") || die "Catbox upload request failed"
+    header_file=$tmp_dir/catbox-headers.txt
 
-    [ "$DEBUG" = "1" ] && log_debug "catbox shot file size: $(wc -c <"$shot_file") bytes"
+    max_retries=$CATBOX_MAX_RETRIES
+    case "$max_retries" in
+        ''|*[!0-9]*)
+            max_retries=1
+            ;;
+    esac
+    [ "$max_retries" -ge 0 ] || max_retries=0
 
-    if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+    attempt=0
+    while :; do
+        attempt=$((attempt + 1))
+
+        use_http1=0
+        if [ "$attempt" -gt 1 ] && [ "$CATBOX_HTTP1_FALLBACK" = "1" ]; then
+            use_http1=1
+        fi
+
+        if [ "$DEBUG" = "1" ]; then
+            if [ "$use_http1" -eq 1 ]; then
+                log_debug "catbox retry $attempt/$((max_retries + 1)): forcing --http1.1"
+            else
+                log_debug "catbox attempt $attempt/$((max_retries + 1)): default curl settings"
+            fi
+        fi
+
+        : >"$header_file"
+        if [ "$use_http1" -eq 1 ]; then
+            http_code=$(curl --http1.1 -sS -D "$header_file" -o "$response_file" -w '%{http_code}' \
+                -F "reqtype=fileupload" \
+                ${CATBOX_USERHASH:+-F "userhash=$CATBOX_USERHASH"} \
+                -F "fileToUpload=@$shot_file" \
+                "$CATBOX_API_URL") || die "Catbox upload request failed"
+        else
+            http_code=$(curl -sS -D "$header_file" -o "$response_file" -w '%{http_code}' \
+                -F "reqtype=fileupload" \
+                ${CATBOX_USERHASH:+-F "userhash=$CATBOX_USERHASH"} \
+                -F "fileToUpload=@$shot_file" \
+                "$CATBOX_API_URL") || die "Catbox upload request failed"
+        fi
+
+        [ "$DEBUG" = "1" ] && log_debug "catbox shot file size: $(wc -c <"$shot_file") bytes"
+        response_size=$(wc -c <"$response_file")
+        header_status=$(head -n 1 "$header_file" 2>/dev/null || true)
+        header_content_type=$(grep -i '^content-type:' "$header_file" 2>/dev/null | head -n 1 | tr -d '\r')
+
+        if [ "$DEBUG" = "1" ]; then
+            log_debug "catbox response status line: ${header_status:-<missing>}"
+            log_debug "catbox response content-type: ${header_content_type:-<missing>}"
+            log_debug "catbox response size: ${response_size:-0} bytes"
+            log_debug "catbox response: $(tr -d '\r' <"$response_file" | head -c 240)"
+        fi
+
+        if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            upload_response=$(tr -d '\r' <"$response_file")
+            die "Catbox upload failed (HTTP $http_code).${upload_response:+ Response: $upload_response}"
+        fi
+
         upload_response=$(tr -d '\r' <"$response_file")
-        die "Catbox upload failed (HTTP $http_code).${upload_response:+ Response: $upload_response}"
-    fi
+        upload_url=$(printf '%s\n' "$upload_response" | grep -Eo 'https?://[^[:space:]]+' | head -n 1 || true)
 
-    upload_response=$(tr -d '\r' <"$response_file")
-    [ "$DEBUG" = "1" ] && log_debug "catbox response: ${upload_response:-<empty>}"
-    upload_url=$(printf '%s\n' "$upload_response" | grep -Eo 'https?://[^[:space:]]+' | head -n 1 || true)
+        if [ -n "$upload_url" ]; then
+            printf '%s' "$upload_url"
+            return 0
+        fi
 
-    if [ -z "$upload_url" ]; then
         if [ -n "$upload_response" ]; then
             die "Catbox upload returned a non-URL response (HTTP $http_code). Response: $upload_response"
         fi
 
-        die "Catbox upload succeeded but returned an empty URL"
-    fi
+        if [ "$attempt" -le "$max_retries" ]; then
+            [ "$DEBUG" = "1" ] && log_debug "Catbox upload returned an empty response; retrying"
+            continue
+        fi
 
-    printf '%s' "$upload_url"
+        die "Catbox upload succeeded but returned an empty URL"
+    done
 }
 
 upload_screenshot() {
@@ -366,6 +420,8 @@ log_env_debug() {
         printf 'UPLOAD_PROVIDER=%s\n' "$UPLOAD_PROVIDER"
         printf 'IMGUR_AUTH_MODE=%s\n' "$IMGUR_AUTH_MODE"
         printf 'CATBOX_API_URL=%s\n' "$CATBOX_API_URL"
+        printf 'CATBOX_MAX_RETRIES=%s\n' "$CATBOX_MAX_RETRIES"
+        printf 'CATBOX_HTTP1_FALLBACK=%s\n' "$CATBOX_HTTP1_FALLBACK"
         printf 'COPY_BIN=%s\n' "$COPY_BIN"
         printf 'SAVE_SCREENSHOT_TO_DESKTOP=%s\n' "$SAVE_SCREENSHOT_TO_DESKTOP"
         printf 'XDG_SESSION_TYPE=%s\n' "${XDG_SESSION_TYPE-}"
