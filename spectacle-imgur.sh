@@ -31,13 +31,31 @@ ensure_clipboard_cmd() {
     fi
 
     if ! command -v brew >/dev/null 2>&1; then
-        die "missing clipboard command: $COPY_BIN (install it with: brew install wl-clipboard)"
+        cat >&2 <<'EOF'
+missing clipboard command: wl-copy
+Install it from your OS package manager and rerun.
+
+Fedora / Bazzite: sudo dnf install wl-clipboard
+Debian / Ubuntu:  sudo apt install wl-clipboard
+Arch / Manjaro:   sudo pacman -S wl-clipboard
+EOF
+        return 1
     fi
 
     printf '%s\n' "wl-copy not found; installing wl-clipboard with Homebrew..." >&2
-    brew install wl-clipboard >/dev/null || die "failed to install wl-clipboard with Homebrew"
+    if ! brew install wl-clipboard >/dev/null; then
+        cat >&2 <<'EOF'
+Homebrew install for wl-clipboard failed (formula not available in this tap).
+Install it from your OS package manager and rerun, or set COPY_BIN to a compatible command.
 
-    command -v "$COPY_BIN" >/dev/null 2>&1 || die "wl-clipboard installation completed, but wl-copy is still not on PATH"
+Fedora / Bazzite: sudo dnf install wl-clipboard
+Debian / Ubuntu:  sudo apt install wl-clipboard
+Arch / Manjaro:   sudo pacman -S wl-clipboard
+EOF
+        return 1
+    fi
+
+    command -v "$COPY_BIN" >/dev/null 2>&1 || die "Homebrew install completed, but wl-copy is still not on PATH"
 }
 
 prompt_for_client_id() {
@@ -257,7 +275,11 @@ copy_to_clipboard() {
         return $?
     fi
 
-    printf '%s\n' "missing clipboard command: $COPY_BIN (install it with: brew install wl-clipboard)" >&2
+    printf '%s\n' "missing clipboard command: $COPY_BIN" >&2
+    printf '%s\n' "Install it from your OS package manager, or set COPY_BIN to a compatible command." >&2
+    printf '%s\n' "Fedora / Bazzite: sudo dnf install wl-clipboard" >&2
+    printf '%s\n' "Debian / Ubuntu:  sudo apt install wl-clipboard" >&2
+    printf '%s\n' "Arch / Manjaro:   sudo pacman -S wl-clipboard" >&2
     return 1
 }
 

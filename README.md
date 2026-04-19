@@ -10,20 +10,29 @@ Single-file Wayland workflow for Dan on Bazzite KDE:
 ## Requirements
 
 - Bazzite KDE already provides `spectacle` and `curl`
-- `wl-copy` from `wl-clipboard` (the script can auto-install this with Homebrew if missing)
+- `wl-copy` from `wl-clipboard` (the script can try to install this with Homebrew if possible)
 - `python3` is only required when using the Imgur provider
 
 ## Install wl-copy
 
-Install `wl-copy` with Homebrew:
+Install `wl-copy` (Linux):
 
 ```bash
-brew install wl-clipboard
+sudo dnf install wl-clipboard
 ```
+
+Alternative package managers:
+
+```bash
+sudo pacman -S wl-clipboard   # Arch/Manjaro
+sudo apt install wl-clipboard # Debian/Ubuntu
+```
+
+If you're on macOS and using Homebrew, check your formula name for your current `brew` channel first. If `wl-clipboard` is unavailable, use a package that provides `wl-copy` or set `COPY_BIN` to a compatible command.
 
 If your shell does not see `wl-copy` right away, make sure Homebrew's `bin` is on `PATH`.
 
-If `wl-copy` is missing and `brew` exists, the script will try to run `brew install wl-clipboard` automatically.
+If `wl-copy` is missing, the script will try to auto-install via Homebrew first, then continue with a clear manual-install message.
 
 ## Get Imgur Client ID (Anonymous Imgur Mode)
 
@@ -132,7 +141,7 @@ UPLOAD_PROVIDER=0x0 ./spectacle-imgur.sh
 
 ## Standalone Spectacle Plugin
 
-This repo also includes a standalone Purpose plugin in `spectacle-plugin/`.
+This repo also includes a KDE Purpose plugin in `spectacle-plugin/`.
 It is a separate program and does not depend on `spectacle-imgur.sh`.
 
 Install it user-local (good for immutable systems like Bazzite):
@@ -153,6 +162,14 @@ chmod +x uninstall.sh
 
 See `spectacle-plugin/README.md` for plugin configuration and environment variables.
 
+If you use this repo for plugin maintenance, the contributor instructions live in:
+
+```text
+skills/spectacle-plugins/SKILL.md
+```
+
+`skills/` is the expected location for repo-specific SKILL guides.
+
 ## Smoke Test
 
 To validate both upload-script behavior and plugin install/uninstall locally (without real network calls):
@@ -167,3 +184,15 @@ The script uses lightweight command fakes and verifies:
 - `0x0` upload success path
 - clipboard copy warning path when copy command returns non-zero
 - plugin installer and uninstaller lifecycle in an isolated `XDG_DATA_HOME`
+
+## Quick Verification Sequence
+
+After install, launch Spectacle and confirm the plugin is listed in the share/export menu:
+
+```bash
+./spectacle-plugin/install.sh
+```
+
+- Capture a region in Spectacle and use **Share** / **Export**
+- Confirm **Upload to Imgur/0x0** appears as an option
+- If it does not appear, restart Spectacle and try again
