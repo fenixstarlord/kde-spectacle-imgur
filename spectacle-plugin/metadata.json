@@ -2,7 +2,7 @@
   "KPlugin": {
     "Id": "spectacle-upload-plugin",
     "Name": "Spectacle Upload Plugin",
-    "Description": "Upload Spectacle screenshots to Imgur or 0x0",
+    "Description": "Upload Spectacle screenshots to Imgur, 0x0, or Catbox",
     "Icon": "document-share",
     "License": "MIT",
     "Version": "0.1.0",

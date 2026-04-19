@@ -106,7 +106,7 @@ chmod +x "$BIN_DIR/curl"
 PROJECT_DIR=$(cd "$(dirname "$0")" && pwd)
 PATH="$BIN_DIR:$PATH"
 
-echo "1/6: imgur success path"
+echo "1/7: imgur success path"
 IMGUR_STDOUT="$WORKDIR/imgur.out"
 IMGUR_STDERR="$WORKDIR/imgur.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -123,7 +123,7 @@ if ! grep -q 'https://imgur\.example\.com/fake\.png' "$IMGUR_STDOUT"; then
     exit 1
 fi
 
-echo "2/6: 0x0 success path"
+echo "2/7: 0x0 success path"
 ZERO_STDOUT="$WORKDIR/0x0.out"
 ZERO_STDERR="$WORKDIR/0x0.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -138,7 +138,7 @@ if ! grep -q 'https://0x0\.example\.com/fake\.png' "$ZERO_STDOUT"; then
     exit 1
 fi
 
-echo "3/6: catbox success path"
+echo "3/7: catbox success path"
 CATBOX_STDOUT="$WORKDIR/catbox.out"
 CATBOX_STDERR="$WORKDIR/catbox.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -153,7 +153,7 @@ if ! grep -q 'https://files\.catbox\.moe/fake\.png' "$CATBOX_STDOUT"; then
     exit 1
 fi
 
-echo "4/6: catbox retry on empty response"
+echo "4/7: catbox retry on empty response"
 CATBOX_RETRY_STDOUT="$WORKDIR/catbox-retry.out"
 CATBOX_RETRY_STDERR="$WORKDIR/catbox-retry.err"
 CATBOX_RETRY_STATE="$WORKDIR/catbox-retry-state"
@@ -177,7 +177,7 @@ if [ "$(cat "$CATBOX_RETRY_STATE")" != "3" ]; then
     exit 1
 fi
 
-echo "5/6: clipboard failure path"
+echo "5/7: clipboard failure path"
 CLIP_STDOUT="$WORKDIR/clipboard.out"
 CLIP_STDERR="$WORKDIR/clipboard.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -192,7 +192,7 @@ if ! grep -q 'Warning: failed to copy URL to clipboard with false' "$CLIP_STDERR
     exit 1
 fi
 
-echo "6/6: plugin install/uninstall lifecycle"
+echo "6/7: plugin install/uninstall lifecycle"
 PLUGIN_ROOT="$PROJECT_DIR/spectacle-plugin"
 XDG_TMP="$WORKDIR/plugin-home"
 TARGET_DIR="$XDG_TMP/kpackage/Purpose/spectacle-upload-plugin"
@@ -212,5 +212,127 @@ if [ -e "$TARGET_DIR" ]; then
     echo "plugin uninstall validation failed" >&2
     exit 1
 fi
+
+echo "7/7: plugin catbox behavior"
+PLUGIN_CODE_DIR="$PROJECT_DIR/spectacle-plugin/contents/code"
+export PLUGIN_CODE_DIR
+
+python3 - <<'PY'
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(os.environ["PLUGIN_CODE_DIR"])))
+
+from config import ConfigError, load_config
+from uploader import UploadError, _request, upload
+
+
+def run_case(
+    name: str,
+    env_overrides: dict[str, str],
+    responses,
+    expected_url: str | None,
+    *,
+    expect_error: bool = False,
+):
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as fp:
+        fp.write(b"PNGDATA")
+        file_path = fp.name
+
+    config_env = {
+        "SPECTACLE_PLUGIN_PROVIDER": "catbox",
+        "SPECTACLE_PLUGIN_CATBOX_API_URL": "https://catbox.moe/user/api.php",
+        "SPECTACLE_PLUGIN_CATBOX_MAX_RETRIES": "1",
+        "SPECTACLE_PLUGIN_CATBOX_HTTP1_FALLBACK": "1",
+        "SPECTACLE_PLUGIN_CATBOX_USERHASH": "",
+    }
+    config_env.update(env_overrides)
+
+    previous = {}
+    for key, value in config_env.items():
+        previous[key] = os.environ.get(key)
+        os.environ[key] = value
+
+    response_list = list(responses)
+    calls = []
+    original_request = _request
+
+    def fake_request(url, headers, body, force_http1=False):
+        calls.append((url, headers.get("Connection"), force_http1))
+        if not response_list:
+            raise AssertionError(f"{name}: unexpected extra request")
+        return response_list.pop(0)
+
+    import uploader as uploader_module
+
+    uploader_module._request = fake_request
+    try:
+        config = load_config()
+        url = upload(file_path, config)
+
+        if expect_error:
+            raise AssertionError(f"{name}: expected an error, got {url}")
+
+        if expected_url is None:
+            raise AssertionError(f"{name}: expected a URL, got None")
+        if url != expected_url:
+            raise AssertionError(f"{name}: expected {expected_url}, got {url}")
+
+        return calls, response_list
+
+    except UploadError:
+        if expect_error:
+            return calls, response_list
+        raise
+
+    finally:
+        uploader_module._request = original_request
+        Path(file_path).unlink()
+        for key, previous_value in previous.items():
+            if previous_value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous_value
+
+
+def expect_upload_error(name: str, env: dict[str, str], responses) -> None:
+    run_case(name, env, responses, expected_url=None, expect_error=True)
+
+
+calls, remaining = run_case(
+    "catbox retry with fallback",
+    {
+        "SPECTACLE_PLUGIN_CATBOX_MAX_RETRIES": "1",
+        "SPECTACLE_PLUGIN_CATBOX_HTTP1_FALLBACK": "1",
+    },
+    [
+        (200, b""),
+        (200, b"https://files.catbox.moe/fake.png\n"),
+    ],
+    "https://files.catbox.moe/fake.png",
+)
+if len(calls) != 2:
+    raise SystemExit("catbox retry should use exactly two requests")
+if calls[1][2] is not True:
+    raise SystemExit("catbox second attempt should enable HTTP/1 fallback style request")
+if remaining:
+    raise SystemExit("catbox retry scenario did not consume all mocked responses")
+
+expect_upload_error(
+    "catbox exhausted without response",
+    {"SPECTACLE_PLUGIN_CATBOX_MAX_RETRIES": "0"},
+    [(200, b"")],
+)
+
+try:
+    os.environ["SPECTACLE_PLUGIN_PROVIDER"] = "invalid"
+    load_config()
+    raise SystemExit("plugin config should reject invalid providers")
+except ConfigError:
+    os.environ.pop("SPECTACLE_PLUGIN_PROVIDER", None)
+
+PY
 
 echo "SMOKE TEST PASSED"

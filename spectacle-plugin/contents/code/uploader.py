@@ -35,29 +35,67 @@ def _as_file_path(url_or_path: str) -> str:
     return normalized
 
 
-def _build_multipart(field_name: str, file_path: str) -> tuple[bytes, str]:
+def _build_multipart_with_fields(
+    file_path: str,
+    file_field: str,
+    extra_fields: list[tuple[str, str]] | None = None,
+) -> tuple[bytes, str]:
     boundary = f"----spectacle-plugin-{secrets.token_hex(12)}"
     filename = os.path.basename(file_path)
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
 
+    extra_fields = extra_fields or []
+
     with open(file_path, "rb") as fh:
         file_bytes = fh.read()
 
-    parts = [
-        f"--{boundary}\r\n".encode("utf-8"),
-        (
-            f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'
-        ).encode("utf-8"),
-        f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"),
-        file_bytes,
-        b"\r\n",
-        f"--{boundary}--\r\n".encode("utf-8"),
-    ]
+
+    parts: list[bytes] = []
+    for field_name, field_value in extra_fields:
+        parts.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                f'Content-Disposition: form-data; name="{field_name}"\r\n'.encode("utf-8"),
+                b"\r\n",
+                str(field_value).encode("utf-8"),
+                b"\r\n",
+            ]
+        )
+
+    parts.extend(
+        [
+            f"--{boundary}\r\n".encode("utf-8"),
+            (
+                f'Content-Disposition: form-data; name="{file_field}"; filename="{filename}"\r\n'
+            ).encode("utf-8"),
+            f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"),
+            file_bytes,
+            b"\r\n",
+            f"--{boundary}--\r\n".encode("utf-8"),
+        ]
+    )
 
     return b"".join(parts), boundary
 
 
-def _request(url: str, headers: dict[str, str], body: bytes) -> tuple[int, bytes]:
+def _build_multipart(field_name: str, file_path: str) -> tuple[bytes, str]:
+    return _build_multipart_with_fields(file_path=file_path, file_field=field_name, extra_fields=None)
+
+
+def _request(
+    url: str,
+    headers: dict[str, str],
+    body: bytes,
+    *,
+    force_http1: bool = False,
+) -> tuple[int, bytes]:
+    if force_http1:
+        # urllib uses HTTP/1.1 by default; this keeps parity with shell fallback mode.
+        headers = {
+            **headers,
+            "Connection": "close",
+        }
+
     req = urllib.request.Request(url=url, data=body, method="POST", headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=45) as response:
@@ -170,10 +208,53 @@ def _upload_zerox0(config: Config, file_path: str) -> str:
     return text.splitlines()[0]
 
 
+def _upload_catbox(config: Config, file_path: str) -> str:
+    fields = [("reqtype", "fileupload")]
+    if config.catbox_userhash:
+        fields.append(("userhash", config.catbox_userhash))
+
+    body, boundary = _build_multipart_with_fields(
+        file_path=file_path,
+        file_field="fileToUpload",
+        extra_fields=fields,
+    )
+
+    attempt = 0
+    while True:
+        attempt += 1
+        use_http1 = attempt > 1 and config.catbox_http1_fallback == 1
+        status, response = _request(
+            config.catbox_api_url,
+            {"Content-Type": f"multipart/form-data; boundary={boundary}"},
+            body,
+            force_http1=use_http1,
+        )
+
+        text = response.decode("utf-8", errors="replace").strip()
+        if status < 200 or status >= 300:
+            suffix = f" Response: {text}" if text else ""
+            raise UploadError(f"Catbox upload failed (HTTP {status}).{suffix}")
+
+        if text:
+            url = text.splitlines()[0].strip()
+            if url.startswith(("http://", "https://")):
+                return url
+            raise UploadError(
+                f"Catbox upload returned an invalid URL response. Response: {text}"
+            )
+
+        if attempt <= config.catbox_max_retries:
+            continue
+
+        raise UploadError("Catbox upload succeeded but returned an empty URL")
+
+
 def upload(input_url: str, config: Config) -> str:
     file_path = _as_file_path(input_url)
     if config.provider == "imgur":
         return _upload_imgur(config, file_path)
     if config.provider == "0x0":
         return _upload_zerox0(config, file_path)
+    if config.provider == "catbox":
+        return _upload_catbox(config, file_path)
     raise UploadError(f"unsupported provider: {config.provider}")
