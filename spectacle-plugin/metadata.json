@@ -1,0 +1,23 @@
+{
+  "KPlugin": {
+    "Id": "spectacle-upload-plugin",
+    "Name": "Spectacle Upload Plugin",
+    "Description": "Upload Spectacle screenshots to Imgur or 0x0",
+    "Icon": "document-share",
+    "License": "MIT",
+    "Version": "0.1.0",
+    "Website": "https://github.com/fenixstarlord/kde-spectacle-imgur"
+  },
+  "X-Purpose-ActionDisplay": "Upload with Spectacle Upload Plugin",
+  "X-Purpose-PluginTypes": [
+    "Export"
+  ],
+  "X-Purpose-Constraints": [
+    [
+      "mimeType:image/png",
+      "mimeType:image/jpeg",
+      "mimeType:image/webp",
+      "mimeType:image/gif"
+    ]
+  ]
+}

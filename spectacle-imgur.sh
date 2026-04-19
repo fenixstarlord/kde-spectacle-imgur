@@ -253,11 +253,12 @@ upload_screenshot() {
 
 copy_to_clipboard() {
     if command -v "$COPY_BIN" >/dev/null 2>&1; then
-        printf '%s' "$1" | "$COPY_BIN" || die "failed to copy URL to clipboard with $COPY_BIN"
-        return 0
+        printf '%s' "$1" | "$COPY_BIN"
+        return $?
     fi
 
-    die "missing clipboard command: $COPY_BIN (install it with: brew install wl-clipboard)"
+    printf '%s\n' "missing clipboard command: $COPY_BIN (install it with: brew install wl-clipboard)" >&2
+    return 1
 }
 
 tmp_dir=$(mktemp -d 2>/dev/null || mktemp -d -t spectacle-imgur)
@@ -316,6 +317,10 @@ case "$upload_url" in
         ;;
 esac
 
-copy_to_clipboard "$upload_url"
-
 printf '%s\n' "$upload_url"
+
+if ! copy_to_clipboard "$upload_url"; then
+    printf '%s\n' "Warning: failed to copy URL to clipboard with $COPY_BIN" >&2
+fi
+
+exit 0

@@ -129,3 +129,26 @@ UPLOAD_PROVIDER=0x0 ./spectacle-imgur.sh
 - `Imgur rate limit hit (HTTP 429)`: anonymous uploads are rate-limited by Imgur. Wait a bit and retry, or use a different Client ID.
 - `unsupported UPLOAD_PROVIDER`: use `imgur` or `0x0`.
 - `xdg_wm_base was destroyed before children` from Spectacle: this warning can appear on some KDE setups and usually does not block the upload flow.
+
+## Standalone Spectacle Plugin
+
+This repo also includes a standalone Purpose plugin in `spectacle-plugin/`.
+It is a separate program and does not depend on `spectacle-imgur.sh`.
+
+Install it user-local (good for immutable systems like Bazzite):
+
+```bash
+cd spectacle-plugin
+chmod +x install.sh
+./install.sh
+```
+
+Uninstall:
+
+```bash
+cd spectacle-plugin
+chmod +x uninstall.sh
+./uninstall.sh
+```
+
+See `spectacle-plugin/README.md` for plugin configuration and environment variables.
