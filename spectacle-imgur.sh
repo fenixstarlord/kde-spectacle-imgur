@@ -10,6 +10,7 @@ IMGUR_CLIENT_ID=${IMGUR_CLIENT_ID:-}
 IMGUR_ACCESS_TOKEN=${IMGUR_ACCESS_TOKEN:-}
 IMGUR_API_URL=${IMGUR_API_URL:-https://api.imgur.com/3/image}
 ZEROX0_API_URL=${ZEROX0_API_URL:-https://0x0.st}
+CATBOX_API_URL=${CATBOX_API_URL:-https://catbox.moe/user/api.php}
 COPY_BIN=${COPY_BIN:-wl-copy}
 
 # Set DEBUG=1 for verbose tracing (runtime env + clipboard stderr capture).
@@ -103,6 +104,7 @@ prompt_for_upload_provider() {
     printf '%s\n' "Upload provider:" >&2
     printf '%s\n' "  1) Imgur" >&2
     printf '%s\n' "  2) 0x0 (anonymous, no API key)" >&2
+    printf '%s\n' "  3) Catbox (anonymous, no API key)" >&2
     printf '%s' "Choose provider [1]: " >&2
 
     if ! IFS= read -r choice; then
@@ -117,6 +119,9 @@ prompt_for_upload_provider() {
             ;;
         2|0x0|0x0.st|zerox0)
             UPLOAD_PROVIDER=0x0
+            ;;
+        3|catbox|catbox.moe)
+            UPLOAD_PROVIDER=catbox
             ;;
         *)
             die "invalid upload provider choice: $choice"
@@ -264,6 +269,24 @@ upload_to_0x0() {
     printf '%s' "$upload_url"
 }
 
+upload_to_catbox() {
+    response_file=$tmp_dir/catbox-response.txt
+    http_code=$(curl -sS -o "$response_file" -w '%{http_code}' \
+        -F "reqtype=fileupload" \
+        -F "fileToUpload=@$shot_file" \
+        "$CATBOX_API_URL") || die "Catbox upload request failed"
+
+    if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+        upload_response=$(tr -d '\r' <"$response_file")
+        die "Catbox upload failed (HTTP $http_code).${upload_response:+ Response: $upload_response}"
+    fi
+
+    IFS= read -r upload_url <"$response_file" || true
+    [ -n "$upload_url" ] || die "Catbox upload succeeded but returned an empty URL"
+
+    printf '%s' "$upload_url"
+}
+
 upload_screenshot() {
     case "$UPLOAD_PROVIDER" in
         imgur)
@@ -272,8 +295,11 @@ upload_screenshot() {
         0x0)
             upload_to_0x0
             ;;
+        catbox)
+            upload_to_catbox
+            ;;
         *)
-            die "unsupported UPLOAD_PROVIDER: $UPLOAD_PROVIDER (use: imgur or 0x0)"
+            die "unsupported UPLOAD_PROVIDER: $UPLOAD_PROVIDER (use: imgur, 0x0, or catbox)"
             ;;
     esac
 }
@@ -325,6 +351,7 @@ log_env_debug() {
         printf 'SPECTACLE_BIN=%s\n' "$SPECTACLE_BIN"
         printf 'UPLOAD_PROVIDER=%s\n' "$UPLOAD_PROVIDER"
         printf 'IMGUR_AUTH_MODE=%s\n' "$IMGUR_AUTH_MODE"
+        printf 'CATBOX_API_URL=%s\n' "$CATBOX_API_URL"
         printf 'COPY_BIN=%s\n' "$COPY_BIN"
         printf 'XDG_SESSION_TYPE=%s\n' "${XDG_SESSION_TYPE-}"
         printf 'WAYLAND_DISPLAY=%s\n' "${WAYLAND_DISPLAY-}"
@@ -368,8 +395,11 @@ case "$UPLOAD_PROVIDER" in
     0x0|0x0.st|zerox0)
         UPLOAD_PROVIDER=0x0
         ;;
+    catbox|catbox.moe)
+        UPLOAD_PROVIDER=catbox
+        ;;
     *)
-        die "unsupported UPLOAD_PROVIDER: $UPLOAD_PROVIDER (use: imgur or 0x0)"
+        die "unsupported UPLOAD_PROVIDER: $UPLOAD_PROVIDER (use: imgur, 0x0, or catbox)"
         ;;
 esac
 

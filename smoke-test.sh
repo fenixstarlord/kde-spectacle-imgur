@@ -77,6 +77,8 @@ if printf '%s' "$target_url" | grep -q 'api\.imgur\.com'; then
     printf '%s' '{"success":true,"data":{"link":"https://imgur.example.com/fake.png"}}' > "$output_file"
 elif printf '%s' "$target_url" | grep -q '0x0\.st'; then
     printf '%s' 'https://0x0.example.com/fake.png' > "$output_file"
+elif printf '%s' "$target_url" | grep -q 'catbox\.moe'; then
+    printf '%s' 'https://files.catbox.moe/fake.png' > "$output_file"
 else
     printf '%s' '{"success":false}' > "$output_file"
 fi
@@ -88,7 +90,7 @@ chmod +x "$BIN_DIR/curl"
 PROJECT_DIR=$(cd "$(dirname "$0")" && pwd)
 PATH="$BIN_DIR:$PATH"
 
-echo "1/4: imgur success path"
+echo "1/5: imgur success path"
 IMGUR_STDOUT="$WORKDIR/imgur.out"
 IMGUR_STDERR="$WORKDIR/imgur.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -105,7 +107,7 @@ if ! grep -q 'https://imgur\.example\.com/fake\.png' "$IMGUR_STDOUT"; then
     exit 1
 fi
 
-echo "2/4: 0x0 success path"
+echo "2/5: 0x0 success path"
 ZERO_STDOUT="$WORKDIR/0x0.out"
 ZERO_STDERR="$WORKDIR/0x0.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -120,7 +122,22 @@ if ! grep -q 'https://0x0\.example\.com/fake\.png' "$ZERO_STDOUT"; then
     exit 1
 fi
 
-echo "3/4: clipboard failure path"
+echo "3/5: catbox success path"
+CATBOX_STDOUT="$WORKDIR/catbox.out"
+CATBOX_STDERR="$WORKDIR/catbox.err"
+SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
+UPLOAD_PROVIDER=catbox \
+COPY_BIN=true \
+PATH="$BIN_DIR:$PATH" \
+"$PROJECT_DIR/spectacle-imgur.sh" >"$CATBOX_STDOUT" 2>"$CATBOX_STDERR"
+
+if ! grep -q 'https://files\.catbox\.moe/fake\.png' "$CATBOX_STDOUT"; then
+    echo "catbox smoke test failed" >&2
+    cat "$CATBOX_STDOUT" "$CATBOX_STDERR" >&2
+    exit 1
+fi
+
+echo "4/5: clipboard failure path"
 CLIP_STDOUT="$WORKDIR/clipboard.out"
 CLIP_STDERR="$WORKDIR/clipboard.err"
 SPECTACLE_BIN="$BIN_DIR/fake-spectacle" \
@@ -135,7 +152,7 @@ if ! grep -q 'Warning: failed to copy URL to clipboard with false' "$CLIP_STDERR
     exit 1
 fi
 
-echo "4/4: plugin install/uninstall lifecycle"
+echo "5/5: plugin install/uninstall lifecycle"
 PLUGIN_ROOT="$PROJECT_DIR/spectacle-plugin"
 XDG_TMP="$WORKDIR/plugin-home"
 TARGET_DIR="$XDG_TMP/kpackage/Purpose/spectacle-upload-plugin"
