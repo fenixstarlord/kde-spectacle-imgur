@@ -114,6 +114,7 @@ UPLOAD_PROVIDER=catbox ./spectacle-imgur.sh
 - `IMGUR_ACCESS_TOKEN` is optional and used for Imgur login mode
 - `ZEROX0_API_URL` defaults to `https://0x0.st`
 - `CATBOX_API_URL` defaults to `https://catbox.moe/user/api.php`
+- `CATBOX_USERHASH` is optional for Catbox user-account uploads (anonymous upload omits this)
 - `COPY_BIN` defaults to `wl-copy`
 - `DEBUG` defaults to `0` (set `DEBUG=1` for debug logging)
 

@@ -11,6 +11,7 @@ IMGUR_ACCESS_TOKEN=${IMGUR_ACCESS_TOKEN:-}
 IMGUR_API_URL=${IMGUR_API_URL:-https://api.imgur.com/3/image}
 ZEROX0_API_URL=${ZEROX0_API_URL:-https://0x0.st}
 CATBOX_API_URL=${CATBOX_API_URL:-https://catbox.moe/user/api.php}
+CATBOX_USERHASH=${CATBOX_USERHASH:-}
 COPY_BIN=${COPY_BIN:-wl-copy}
 
 # Set DEBUG=1 for verbose tracing (runtime env + clipboard stderr capture).
@@ -273,6 +274,7 @@ upload_to_catbox() {
     response_file=$tmp_dir/catbox-response.txt
     http_code=$(curl -sS -o "$response_file" -w '%{http_code}' \
         -F "reqtype=fileupload" \
+        ${CATBOX_USERHASH:+-F "userhash=$CATBOX_USERHASH"} \
         -F "fileToUpload=@$shot_file" \
         "$CATBOX_API_URL") || die "Catbox upload request failed"
 
@@ -281,8 +283,16 @@ upload_to_catbox() {
         die "Catbox upload failed (HTTP $http_code).${upload_response:+ Response: $upload_response}"
     fi
 
-    IFS= read -r upload_url <"$response_file" || true
-    [ -n "$upload_url" ] || die "Catbox upload succeeded but returned an empty URL"
+    upload_response=$(tr -d '\r' <"$response_file")
+    upload_url=$(printf '%s\n' "$upload_response" | grep -Eo 'https?://[^[:space:]]+' | head -n 1 || true)
+
+    if [ -z "$upload_url" ]; then
+        if [ -n "$upload_response" ]; then
+            die "Catbox upload returned a non-URL response (HTTP $http_code). Response: $upload_response"
+        fi
+
+        die "Catbox upload succeeded but returned an empty URL"
+    fi
 
     printf '%s' "$upload_url"
 }
