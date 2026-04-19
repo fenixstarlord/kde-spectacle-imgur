@@ -152,3 +152,18 @@ chmod +x uninstall.sh
 ```
 
 See `spectacle-plugin/README.md` for plugin configuration and environment variables.
+
+## Smoke Test
+
+To validate both upload-script behavior and plugin install/uninstall locally (without real network calls):
+
+```bash
+./smoke-test.sh
+```
+
+The script uses lightweight command fakes and verifies:
+
+- `imgur` upload success path
+- `0x0` upload success path
+- clipboard copy warning path when copy command returns non-zero
+- plugin installer and uninstaller lifecycle in an isolated `XDG_DATA_HOME`
